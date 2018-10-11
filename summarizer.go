@@ -3,6 +3,8 @@ package main
 import (
 	"io"
 	"log"
+	"math"
+	"sort"
 	"strconv"
 )
 
@@ -12,6 +14,7 @@ type Result struct {
 	min     float64
 	max     float64
 	average float64
+	median  float64
 	count   int64
 }
 
@@ -53,7 +56,15 @@ func calc(n numbers) Result {
 		r.sum = r.sum + e
 	}
 	r.average = r.sum / float64(r.count)
+	r.median = getMedian(n, r.count)
 	return r
+}
+
+func getMedian(n numbers, count int64) float64 {
+	index := float64(count / 2)
+	middle := int(math.Floor(index))
+	sort.Float64s(n)
+	return n[middle]
 }
 
 func getColumnValue(col Column, record []string) *float64 {
