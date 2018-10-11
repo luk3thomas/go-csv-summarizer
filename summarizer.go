@@ -6,6 +6,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"time"
 )
 
 // Result summarized stats
@@ -18,11 +19,74 @@ type Result struct {
 	count   int64
 }
 
-type numbers []float64
+// ResultSet a set of results
+type ResultSet map[string]Result
 
-// Summarize a list of numbers
-func Summarize(opts Options) Result {
-	var n numbers
+type list []float64
+type aggregatedMap map[string][]float64
+
+// Summarize a list of list
+func Summarize(opts Options) ResultSet {
+	if opts.datecol == 0 {
+		list := summarizeList(opts)
+		res := make(ResultSet)
+		res["all"] = list
+		return res
+	}
+	return aggList(opts)
+}
+
+func aggList(opts Options) ResultSet {
+	var result = make(ResultSet)
+	var list = make(aggregatedMap)
+	for {
+		record, err := opts.file.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		date := getColumn(opts.datecol, record)
+		value := getColumnValue(opts.column, record)
+		if value != nil && date != nil {
+			list = appendValue(list, opts, *date, *value)
+		}
+	}
+
+	for k, v := range list {
+		result[k] = calc(v)
+	}
+
+	return result
+}
+
+func appendValue(r aggregatedMap, opts Options, date string, value float64) aggregatedMap {
+	var formatedDate string
+	t, err := time.Parse(opts.datefmt, date)
+	if err != nil {
+		return r
+	}
+
+	if opts.dateagg == DateFormatYear {
+		formatedDate = t.Format("2006")
+	} else {
+		formatedDate = t.Format("2006-01")
+	}
+
+	val, hasKey := r[formatedDate]
+
+	if hasKey {
+		l := append(val, value)
+		r[formatedDate] = l
+	} else {
+		r[formatedDate] = list{value}
+	}
+	return r
+}
+
+func summarizeList(opts Options) Result {
+	var n list
 	for {
 		record, err := opts.file.Read()
 		if err == io.EOF {
@@ -39,7 +103,7 @@ func Summarize(opts Options) Result {
 	return calc(n)
 }
 
-func calc(n numbers) Result {
+func calc(n list) Result {
 	r := Result{}
 	r.count = int64(len(n))
 	for i, e := range n {
@@ -60,19 +124,24 @@ func calc(n numbers) Result {
 	return r
 }
 
-func getMedian(n numbers, count int64) float64 {
+func getMedian(n list, count int64) float64 {
 	index := float64(count / 2)
 	middle := int(math.Floor(index))
 	sort.Float64s(n)
 	return n[middle]
 }
 
-func getColumnValue(col Column, record []string) *float64 {
+func getColumn(col Column, record []string) *string {
 	var index = int(col - 1)
 	if index > len(record) {
 		return nil
 	}
-	value, err := strconv.ParseFloat(record[index], 64)
+	return &record[index]
+}
+
+func getColumnValue(col Column, record []string) *float64 {
+	v := getColumn(col, record)
+	value, err := strconv.ParseFloat(*v, 64)
 	if err != nil {
 		return nil
 	}
