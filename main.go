@@ -30,8 +30,8 @@ func main() {
 
 	summary := Summarize(options)
 
-	for k, v := range summary {
-		fmt.Printf("%s\n", k)
+	for _, v := range summary.sort() {
+		fmt.Printf("%s\n", v.name)
 		fmt.Printf("\tsum\t%v\n", v.sum)
 		fmt.Printf("\tavg\t%v\n", v.average)
 		fmt.Printf("\tmin\t%v\n", v.min)

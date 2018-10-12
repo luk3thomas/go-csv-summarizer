@@ -11,6 +11,7 @@ import (
 
 // Result summarized stats
 type Result struct {
+	name    string
 	sum     float64
 	min     float64
 	max     float64
@@ -20,17 +21,35 @@ type Result struct {
 }
 
 // ResultSet a set of results
-type ResultSet map[string]Result
+type ResultSet map[time.Time]Result
 
 type list []float64
-type aggregatedMap map[string][]float64
+type aggregatedMap map[time.Time][]float64
+
+func (r ResultSet) sort() []Result {
+	var keys []time.Time
+	var result []Result
+	for t := range r {
+		keys = append(keys, t)
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i].Before(keys[j])
+	})
+
+	for _, k := range keys {
+		result = append(result, r[k])
+	}
+	return result
+}
 
 // Summarize a list of list
 func Summarize(opts Options) ResultSet {
 	if opts.datecol == 0 {
 		list := summarizeList(opts)
+		list.name = "all"
 		res := make(ResultSet)
-		res["all"] = list
+		res[time.Now()] = list
 		return res
 	}
 	return aggList(opts)
@@ -55,32 +74,34 @@ func aggList(opts Options) ResultSet {
 	}
 
 	for k, v := range list {
-		result[k] = calc(v)
+		r := calc(v)
+		r.name = k.Format("2006-01")
+		result[k] = r
 	}
 
 	return result
 }
 
 func appendValue(r aggregatedMap, opts Options, date string, value float64) aggregatedMap {
-	var formatedDate string
+	var aggTime time.Time
 	t, err := time.Parse(opts.datefmt, date)
 	if err != nil {
 		return r
 	}
 
 	if opts.dateagg == DateFormatYear {
-		formatedDate = t.Format("2006")
+		aggTime, _ = time.Parse("2006", t.Format("2006"))
 	} else {
-		formatedDate = t.Format("2006-01")
+		aggTime, _ = time.Parse("2006-01", t.Format("2006-01"))
 	}
 
-	val, hasKey := r[formatedDate]
+	val, hasKey := r[aggTime]
 
 	if hasKey {
 		l := append(val, value)
-		r[formatedDate] = l
+		r[aggTime] = l
 	} else {
-		r[formatedDate] = list{value}
+		r[aggTime] = list{value}
 	}
 	return r
 }
